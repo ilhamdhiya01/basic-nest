@@ -20,6 +20,7 @@ import { UserRepository } from '../user-repository/user-repository';
  * MemberService: injected to demonstrate dynamic resolution via ModuleRef
  */
 import { MemberService } from '../member/member.service';
+import { User } from 'generated/prisma/client';
 
 /**
  * @Controller sets the base path for all routes in this class
@@ -53,6 +54,11 @@ export class UserController {
 
   sendEmail() {
     return this.emailService.send();
+  }
+
+  @Get('save')
+  async save(@Query() query: { name: string }): Promise<User> {
+    return this.userRepository.save(query.name);
   }
 
   /**
@@ -99,7 +105,7 @@ export class UserController {
    */
   @Get('/connection')
   getConnection() {
-    this.userRepository.save();
+    // this.userRepository.save();
     this.mailService.send();
     return this.connection.getName();
   }

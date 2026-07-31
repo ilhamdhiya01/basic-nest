@@ -8,6 +8,7 @@ import { UserModule } from './user/user.module';
  * without needing to re-import ConfigModule in each module.
  */
 import { ConfigModule } from '@nestjs/config';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { ConfigModule } from '@nestjs/config';
       isGlobal: true,
     }),
     UserModule,
+    PrismaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

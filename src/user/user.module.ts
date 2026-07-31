@@ -8,10 +8,10 @@ import { UserService } from './user/user.service';
  */
 import { Connection, createConnection } from './connection/connection';
 import { mailService, MailService } from './mail/mail.service';
-import {
-  createUserRepository,
-  UserRepository,
-} from './user-repository/user-repository';
+// import {
+//   createUserRepository,
+//   UserRepository,
+// } from './user-repository/user-repository';
 /**
  * MemberService: demonstrates dynamic provider resolution via ModuleRef
  * (see src/user/member/member.service.ts for implementation)
@@ -23,8 +23,11 @@ import { MemberService } from './member/member.service';
  * is registered in AppModule.
  */
 import { ConfigService } from '@nestjs/config';
+import { UserRepository } from './user-repository/user-repository';
+import { PrismaModule } from 'src/prisma/prisma.module';
 
 @Module({
+  imports: [PrismaModule],
   /**
    * Register which controllers belong to this module
    */
@@ -35,6 +38,7 @@ import { ConfigService } from '@nestjs/config';
      * that can be injected via constructor
      */
     UserService,
+    UserRepository,
     /**
      * useFactory: replaced the previous useClass approach.
      * Previously used useClass with a ternary reading process.env directly.
@@ -65,11 +69,11 @@ import { ConfigService } from '@nestjs/config';
      * inject: list of providers that the factory function needs
      * as parameters — NestJS will resolve them before calling the factory
      */
-    {
-      provide: UserRepository,
-      useFactory: createUserRepository,
-      inject: [Connection],
-    },
+    // {
+    //   provide: UserRepository,
+    //   useFactory: createUserRepository,
+    //   inject: [Connection],
+    // },
     /**
      * useExisting: create an alias for an existing provider.
      * "EmailService" points to the same instance as MailService,
