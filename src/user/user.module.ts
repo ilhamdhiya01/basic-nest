@@ -24,10 +24,15 @@ import { MemberService } from './member/member.service';
  */
 import { ConfigService } from '@nestjs/config';
 import { UserRepository } from './user-repository/user-repository';
-import { PrismaModule } from 'src/prisma/prisma.module';
 
 @Module({
-  imports: [PrismaModule],
+  /**
+   * imports is empty because PrismaModule is @Global() —
+   * PrismaService is available everywhere without importing PrismaModule.
+   * Previously PrismaModule was imported here, but that's redundant
+   * when the module is already marked as global.
+   */
+  imports: [],
   /**
    * Register which controllers belong to this module
    */
@@ -39,6 +44,7 @@ import { PrismaModule } from 'src/prisma/prisma.module';
      */
     UserService,
     UserRepository,
+    MemberService,
     /**
      * useFactory: replaced the previous useClass approach.
      * Previously used useClass with a ternary reading process.env directly.
@@ -85,11 +91,6 @@ import { PrismaModule } from 'src/prisma/prisma.module';
       provide: 'EmailService',
       useExisting: MailService,
     },
-    /**
-     * Standard provider for MemberService, which uses ModuleRef
-     * to dynamically resolve other providers at runtime
-     */
-    MemberService,
   ],
   /**
    * exports: makes UserService available to other modules that import UserModule.

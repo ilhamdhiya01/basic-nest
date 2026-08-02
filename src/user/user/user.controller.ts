@@ -2,14 +2,18 @@ import {
   Body,
   Controller,
   Get,
+  HttpException,
   type HttpRedirectResponse,
   Inject,
   Param,
+  ParseIntPipe,
   Post,
   Query,
   Redirect,
   Req,
   Res,
+  UseFilters,
+  UsePipes,
 } from '@nestjs/common';
 import { type Response, type Request } from 'express';
 import { UserService } from './user.service';
@@ -21,6 +25,12 @@ import { UserRepository } from '../user-repository/user-repository';
  */
 import { MemberService } from '../member/member.service';
 import { User } from 'generated/prisma/client';
+import { ValidationFilter } from 'src/validation/validation.filter';
+import {
+  loginRequestUserValidation,
+  LoginUserRequest,
+} from 'src/model/login.model';
+import { ValidationPipe } from 'src/validation/validation.pipe';
 
 /**
  * @Controller sets the base path for all routes in this class
@@ -56,9 +66,69 @@ export class UserController {
     return this.emailService.send();
   }
 
+  /**
+   * Route: POST /api/user/login
+   *
+   * @UseFilters(ValidationFilter) catches ZodError thrown by the pipe
+   * and returns a structured 400 response with validation error details.
+   *
+   * @UsePipes(new ValidationPipe(loginRequestUserValidation)) validates
+   * the request body against the Zod schema defined in login.model.ts.
+   * The pipe is instantiated with `new` because it needs a specific schema
+   * per route — NestJS can't auto-instantiate it since the schema varies.
+   *
+   * @Body() request is typed as LoginUserRequest for type safety,
+   * but the actual runtime validation is done by the Zod schema in the pipe.
+   */
+  @UseFilters(ValidationFilter)
+  @Post('/login')
+  @UsePipes(new ValidationPipe(loginRequestUserValidation))
+  login(
+    @Query('name') name: string,
+    @Body() request: LoginUserRequest,
+  ): string {
+    return `Hello ${request.username}`;
+  }
+
+  /**
+   * Route: GET /api/user/save?firstName=...&lastName=...
+   * @Query() without arguments extracts all query params as an object.
+   * Delegates to UserRepository.save() which uses Prisma to insert
+   * a new row into the users table.
+   *
+   * Manual validation: if firstName is missing, throws HttpException
+   * with a structured error body (code + errors). This is an alternative
+   * to using Zod validation — useful for simple checks that don't
+   * warrant a full schema. HttpException is NestJS's built-in exception
+   * that the framework automatically catches and converts to an HTTP response.
+   */
   @Get('save')
-  async save(@Query() query: { name: string }): Promise<User> {
-    return this.userRepository.save(query.name);
+  async save(
+    @Query() query: { firstName: string; lastName: string },
+  ): Promise<User> {
+    if (!query.firstName) {
+      throw new HttpException(
+        {
+          code: 400,
+          errors: 'First name is required',
+        },
+        400,
+      );
+    }
+    return this.userRepository.save(query.firstName, query.lastName);
+  }
+
+  /**
+   * Route: GET /api/user/:id
+   *
+   * ParseIntPipe is a built-in NestJS pipe that converts the string
+   * route param to a number. If the conversion fails (e.g., /api/user/abc),
+   * NestJS automatically returns a 400 Bad Request with an error message.
+   * This is simpler than manual parseInt() and provides consistent error handling.
+   */
+  @Get('/:id')
+  getById(@Param('id', ParseIntPipe) id: number): string {
+    return `GET ${id}`;
   }
 
   /**
@@ -125,11 +195,17 @@ export class UserController {
   /**
    * Route: GET /api/user/hello/:name
    * @Param extracts route parameters from the URL
-   * Delegates to UserService.sayHello() to demonstrate service injection
+   * Delegates to UserService.sayHello() to demonstrate service injection.
+   *
+   * @UseFilters(ValidationFilter) catches ZodError thrown by
+   * validationService.validate() inside UserService.sayHello().
+   * If the name is shorter than 3 or longer than 100 characters,
+   * the Zod schema throws and this filter converts it to a 400 response.
    */
   @Get('/hello/:name')
-  async sayHello(@Param('name') name: string): Promise<string> {
-    return await this.service.sayHello(name);
+  @UseFilters(ValidationFilter)
+  sayHello(@Param('name') name: string): string {
+    return this.service.sayHello(name);
   }
 
   /**

@@ -1,6 +1,11 @@
-import { Injectable } from '@nestjs/common';
+/* eslint-disable @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+import { Inject, Injectable } from '@nestjs/common';
 import { User } from 'generated/prisma/client';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { PrismaService } from 'src/prisma/prisma/prisma.service';
+import { Logger } from 'winston';
 // import { Connection } from '../connection/connection';
 
 /**
@@ -12,8 +17,18 @@ import { PrismaService } from 'src/prisma/prisma/prisma.service';
  */
 @Injectable()
 export class UserRepository {
-  constructor(private prismaService: PrismaService) {
-    console.log('Create user repository');
+  constructor(
+    private prismaService: PrismaService,
+    /**
+     * @Inject with WINSTON_MODULE_PROVIDER is needed because Winston's
+     * logger is registered with a string token, not a class token.
+     * NestJS can only auto-inject by class type — for string tokens,
+     * you must explicitly tell it which token to resolve.
+     * This gives you the same Winston instance configured in AppModule.
+     */
+    @Inject(WINSTON_MODULE_PROVIDER) private logger: Logger,
+  ) {
+    logger.info('Create user repository');
   }
 
   /**
@@ -22,11 +37,13 @@ export class UserRepository {
    */
   // connection: Connection;
 
-  async save(name: string): Promise<User> {
+  async save(firstName: string, lastName: string): Promise<User> {
+    this.logger.info('Saving user', { firstName, lastName });
     return this.prismaService.user.create({
       data: {
         // id: parseInt(id),
-        firstName: name,
+        firstName,
+        lastName,
       },
     });
   }

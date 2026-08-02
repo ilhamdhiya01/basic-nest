@@ -10,10 +10,40 @@ import mustache from 'mustache-express';
  * to access configuration after ConfigModule is initialized.
  */
 import { ConfigService } from '@nestjs/config';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import { Logger } from 'winston';
 
 async function bootstrap() {
+  /**
+   * NestExpressApplication gives access to Express-specific methods
+   * like app.set() for view engine config and app.engine() for custom engines.
+   */
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  /**
+   * Replace NestJS's default logger with Winston.
+   * app.get(WINSTON_MODULE_NEST_PROVIDER) retrieves the Winston logger
+   * instance from the DI container — the same one injected via
+   * WINSTON_MODULE_PROVIDER in other providers.
+   * app.useLogger() makes all NestJS internal logs (startup, routes, errors)
+   * go through Winston instead of the built-in console logger.
+   */
+  const logger: Logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
+  app.useLogger(logger);
+
+  /**
+   * cookie-parser middleware parses Cookie header from incoming requests
+   * and populates req.cookies with key-value pairs.
+   * The argument is the signing secret — signed cookies are tamper-proof
+   * and accessible via req.signedCookies instead of req.cookies.
+   */
   app.use(cookieParser('MY_SECET_KEY'));
+
+  /**
+   * View engine setup using Mustache templates.
+   * __dirname points to dist/ (or src/ in dev), so '/../views' resolves
+   * to the project root's /views folder where .html template files live.
+   */
   app.set('views', __dirname + '/../views');
   app.set('view engine', 'html');
   app.engine('html', mustache());

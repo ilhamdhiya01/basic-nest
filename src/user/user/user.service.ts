@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { ValidationService } from 'src/validation/validation.service';
+import z from 'zod';
 
 /**
  * @Injectable() marks this class as a provider that NestJS can inject.
@@ -7,11 +9,25 @@ import { Injectable } from '@nestjs/common';
 @Injectable()
 export class UserService {
   /**
-   * Async method returning a Promise<string>
-   * Promise.resolve() wraps a value in an immediately-resolved Promise
-   * (simulating async work like a database query)
+   * ValidationService is injected via constructor DI.
+   * It's available globally because ValidationModule.forRoot()
+   * is registered with global: true in AppModule.
    */
-  async sayHello(name: string): Promise<string> {
-    return await Promise.resolve(`Hello ${name}`);
+  constructor(private validationService: ValidationService) {}
+
+  /**
+   * sayHello validates the name parameter using a Zod schema
+   * (min 3, max 100 characters) before using it.
+   *
+   * The schema is defined inline here, but for reusable schemas
+   * it's better to define them in a separate model file (see login.model.ts).
+   * validationService.validate() throws ZodError if validation fails,
+   * which is caught by ValidationFilter on the controller.
+   */
+  sayHello(name: string): string {
+    const schema = z.string().min(3).max(100);
+    const result = this.validationService.validate(schema, name);
+
+    return `Hello ${result}`;
   }
 }
