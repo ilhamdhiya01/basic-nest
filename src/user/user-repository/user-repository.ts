@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/require-await */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 import { Inject, Injectable } from '@nestjs/common';
 import { User } from 'generated/prisma/client';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
@@ -37,13 +34,24 @@ export class UserRepository {
    */
   // connection: Connection;
 
-  async save(firstName: string, lastName: string): Promise<User> {
-    this.logger.info('Saving user', { firstName, lastName });
+  /**
+   * Inserts a new user row via Prisma.
+   *
+   * @param firstName Required — enforced by the caller (UserController.save)
+   * @param lastName  Optional in the schema (String?), so it may be undefined
+   * @param role      Optional in the schema (String?). This is the value
+   *                  RoleGuard later compares against a handler's @Roles([...])
+   *                  list, so a user saved without a role can't pass any
+   *                  role-restricted route.
+   */
+  async save(firstName: string, lastName: string, role: string): Promise<User> {
+    this.logger.info('Saving user', { firstName, lastName, role });
     return this.prismaService.user.create({
       data: {
         // id: parseInt(id),
         firstName,
         lastName,
+        role,
       },
     });
   }

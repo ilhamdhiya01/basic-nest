@@ -18,6 +18,9 @@ import { WinstonModule } from 'nest-winston';
 import { ValidationModule } from './validation/validation.module';
 import * as winston from 'winston';
 import { LogMiddleware } from './log/log.middleware';
+import { AuthMiddleware } from './auth/auth.middleware';
+import { APP_GUARD } from '@nestjs/core';
+import { RoleGuard } from './role/role.guard';
 
 @Module({
   imports: [
@@ -55,24 +58,75 @@ import { LogMiddleware } from './log/log.middleware';
     ValidationModule.forRoot(),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    /**
+     * Registering RoleGuard under the APP_GUARD token makes it a GLOBAL guard —
+     * it runs on every route in the application, no @UseGuards() needed anywhere.
+     *
+     * Why this form instead of app.useGlobalGuards(new RoleGuard()) in main.ts:
+     * declaring it as a provider keeps it inside the DI container, so NestJS can
+     * inject its Reflector dependency. A manually constructed guard cannot.
+     *
+     * Being global does NOT mean every route is locked down: RoleGuard returns
+     * true for any handler that has no @Roles() metadata, so only decorated
+     * routes are actually restricted.
+     */
+    {
+      provide: APP_GUARD,
+      useClass: RoleGuard,
+    },
+  ],
 })
 /**
  * AppModule implements NestModule to register middleware.
  * configure() is called by NestJS during bootstrap to set up middleware.
  *
- * consumer.apply(LogMiddleware) registers the middleware.
+ * consumer.apply(SomeMiddleware) registers the middleware.
  * .forRoutes() restricts which routes trigger it:
  * - path: '/api/*' matches all routes under /api/
  * - method: RequestMethod.ALL means it runs for GET, POST, PUT, etc.
  *
- * This way every API request is logged before reaching the route handler.
+ * Middleware is the FIRST stage of the NestJS request lifecycle:
+ *   Middleware -> Guard -> Interceptor -> Pipe -> Route Handler
+ * Middleware registration order here determines their execution order,
+ * so LogMiddleware runs before AuthMiddleware on protected routes.
  */
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    /**
+     * LogMiddleware runs for every API request so that all traffic is logged
+     * before it reaches a route handler — including requests that are later
+     * rejected by AuthMiddleware or RoleGuard.
+     */
     consumer.apply(LogMiddleware).forRoutes({
       path: '/api/*',
       method: RequestMethod.ALL,
+    });
+
+    /**
+     * AuthMiddleware is applied route-by-route rather than to all of '/api/*',
+     * because public endpoints (such as POST /api/user/login) must stay
+     * reachable without credentials.
+     *
+     * Both routes below are decorated with @Roles(['admin']) in UserController.
+     * These two registrations must stay in sync with those decorators: a
+     * @Roles() route that AuthMiddleware does not cover would leave
+     * `request.user` undefined and make RoleGuard throw a 500 instead of a 401.
+     *
+     * forRoutes() is variadic, so these two calls could be collapsed into one:
+     *   consumer.apply(AuthMiddleware).forRoutes(
+     *     { path: '/api/user/current', method: RequestMethod.GET },
+     *     { path: '/api/user/save', method: RequestMethod.GET },
+     *   );
+     */
+    consumer.apply(AuthMiddleware).forRoutes({
+      path: '/api/user/current',
+      method: RequestMethod.GET,
+    });
+    consumer.apply(AuthMiddleware).forRoutes({
+      path: '/api/user/save',
+      method: RequestMethod.GET,
     });
   }
 }

@@ -49,6 +49,17 @@ async function bootstrap() {
   app.engine('html', mustache());
 
   /**
+   * enableShutdownHooks() makes NestJS listen for process termination signals
+   * (SIGTERM, SIGINT, etc.) and run lifecycle hooks before exiting.
+   *
+   * Without this call, onModuleDestroy() is never invoked on shutdown — which
+   * would leave PrismaService.$disconnect() unexecuted and the database
+   * connection pool dangling. Matters especially in containers, where an
+   * orchestrator stops the app by sending SIGTERM.
+   */
+  app.enableShutdownHooks();
+
+  /**
    * app.get(ConfigService) retrieves the ConfigService instance from
    * the NestJS DI container. This works because ConfigModule.forRoot()
    * is registered in AppModule with isGlobal: true.

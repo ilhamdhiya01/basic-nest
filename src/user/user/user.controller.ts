@@ -13,6 +13,7 @@ import {
   Req,
   Res,
   UseFilters,
+  // UseGuards,
   UsePipes,
 } from '@nestjs/common';
 import { type Response, type Request } from 'express';
@@ -31,10 +32,24 @@ import {
   LoginUserRequest,
 } from 'src/model/login.model';
 import { ValidationPipe } from 'src/validation/validation.pipe';
+import { Auth } from 'src/auth/auth.decorator';
+// import { RoleGuard } from 'src/role/role.guard';
+import { Roles } from 'src/role/role.decorator';
 
 /**
  * @Controller sets the base path for all routes in this class
  */
+
+/**
+ * @UseGuards(RoleGuard) is commented out on purpose: RoleGuard is already
+ * registered globally in AppModule via the APP_GUARD token, so it runs on
+ * every route here. Re-declaring it at the controller level would execute
+ * the same guard twice for no benefit.
+ *
+ * Keep it commented as documentation of the alternative wiring — it's the
+ * form to use if the guard should ever be scoped to this controller only.
+ */
+// @UseGuards(RoleGuard)
 @Controller('/api/user')
 export class UserController {
   /**
@@ -67,6 +82,26 @@ export class UserController {
   }
 
   /**
+   * Route: GET /api/user/current
+   *
+   * Demonstrates the full auth chain working together:
+   * 1. AuthMiddleware (registered for this path in AppModule) reads the
+   *    `x-username` header, loads the user, and attaches it to the request.
+   * 2. @Roles(['admin']) tags this handler with the roles allowed to call it.
+   * 3. RoleGuard (global, via APP_GUARD) reads that tag and compares it
+   *    against the user's role — returning 403 if it doesn't match.
+   * 4. @Auth() injects the request's user straight into the parameter,
+   *    typed as the Prisma-generated User model.
+   *
+   * Requires header: x-username: <user id>
+   */
+  @Get('/current')
+  @Roles(['admin'])
+  current(@Auth() user: User) {
+    return `Current user: ${user.firstName} ${user.lastName}`;
+  }
+
+  /**
    * Route: POST /api/user/login
    *
    * @UseFilters(ValidationFilter) catches ZodError thrown by the pipe
@@ -91,7 +126,7 @@ export class UserController {
   }
 
   /**
-   * Route: GET /api/user/save?firstName=...&lastName=...
+   * Route: GET /api/user/save?firstName=...&lastName=...&role=...
    * @Query() without arguments extracts all query params as an object.
    * Delegates to UserRepository.save() which uses Prisma to insert
    * a new row into the users table.
@@ -101,10 +136,21 @@ export class UserController {
    * to using Zod validation — useful for simple checks that don't
    * warrant a full schema. HttpException is NestJS's built-in exception
    * that the framework automatically catches and converts to an HTTP response.
+   *
+   * The `role` query param feeds the new User.role column, which is what
+   * RoleGuard checks on subsequent requests — this endpoint is how a user
+   * with an 'admin' role gets created in the first place.
+   *
+   * Protected by @Roles(['admin']) plus AuthMiddleware (registered for this
+   * path in AppModule), so only an existing admin can create users.
+   *
+   * NOTE: creating data over GET is unconventional — POST is the correct verb
+   * for a write. It's kept as GET here for ease of manual testing.
    */
+  @Roles(['admin'])
   @Get('save')
   async save(
-    @Query() query: { firstName: string; lastName: string },
+    @Query() query: { firstName: string; lastName: string; role: string },
   ): Promise<User> {
     if (!query.firstName) {
       throw new HttpException(
@@ -115,7 +161,11 @@ export class UserController {
         400,
       );
     }
-    return this.userRepository.save(query.firstName, query.lastName);
+    return this.userRepository.save(
+      query.firstName,
+      query.lastName,
+      query.role,
+    );
   }
 
   /**
