@@ -15,7 +15,7 @@ import { Logger } from 'winston';
  * @Inject(WINSTON_MODULE_PROVIDER) is needed because Winston's logger
  * uses a string token, not a class — NestJS can't auto-inject by type.
  */
-@Injectable()
+@Injectable
 export class LogMiddleware implements NestMiddleware<Request, Response> {
   constructor(@Inject(WINSTON_MODULE_PROVIDER) private logger: Logger) {}
 
